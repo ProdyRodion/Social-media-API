@@ -1,50 +1,34 @@
-from django.db import models
+import os
+import uuid
+
 from django.conf import settings
+from django.db import models
+from django.utils.text import slugify
 
 
-class Profile(models.Model):
-    created_at = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE
-    )
-    username = models.CharField(max_length=63)
-    first_name = models.CharField(max_length=63)
-    last_name = models.CharField(max_length=63)
-
-    @property
-    def full_name(self) -> str:
-        return f"{self.first_name} {self.last_name}"
-
-    def __str__(self) -> str:
-        return f"{self.username} ({self.first_name} {self.last_name})"
+def post_image(instance, filename):
+    _, extension = os.path.splitext(filename)
+    filename = f"{uuid.uuid4()}{extension}"
+    return os.path.join(f"uploads/posts/{slugify(instance.author.email)}",
+                        filename)
 
 
-class Subscription(models.Model):
-    subscriber = models.ForeignKey(
+class Post(models.Model):
+    author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="subscriptions"
+        related_name="posts"
     )
-    target = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="subscribers"
+    content = models.CharField(max_length=255)
+    image = models.ImageField(
+        upload_to=post_image,
+        blank=True,
+        null=True
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('subscriber', 'target')
+        ordering = ["-created_at"]
 
-    def __str__(self) -> str:
-        return f"{self.subscriber}"
-
-
-class Post(models.Model):
-    created_at = models.DateTimeField(auto_now_add=True)
-    message = models.TextField()
-    user_profile = models.ForeignKey(
-        Profile, on_delete=models.CASCADE
-    )
-
-    def __str__(self) -> str:
-        return f"{self.message}"
+    def __str__(self):
+        return self.content

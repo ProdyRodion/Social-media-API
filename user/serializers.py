@@ -1,23 +1,60 @@
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from django.utils.translation import gettext as _
 
 
-class UserSerializer(serializers.ModelSerializer):
+class UserCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
-        fields = ("id", "email", "password", "is_staff")
-        read_only_fields = ("is_staff",)
+        fields = (
+            "id",
+            "email",
+            "password",
+            "username",
+            "is_staff",
+        )
+        read_only_fields = ("id", "is_staff",)
         extra_kwargs = {"password": {"write_only": True, "min_length": 5}}
 
     def create(self, validated_data):
-        """Create a new user with encrypted password and return it"""
         return get_user_model().objects.create_user(**validated_data)
 
+
+class UserDetailSerializer(serializers.ModelSerializer):
+    subscribed_to = serializers.SlugRelatedField(
+        slug_field="username",
+        many=True,
+        read_only=True
+    )
+    subscribers = serializers.SlugRelatedField(
+        slug_field="username",
+        many=True,
+        read_only=True
+    )
+
+    class Meta:
+        model = get_user_model()
+        fields = (
+            "id",
+            "email",
+            "username",
+            "first_name",
+            "last_name",
+            "bio",
+            "avatar",
+            "subscribed_to",
+            "subscribers",
+            "is_staff"
+        )
+
+
+class UserManageSerializer(UserDetailSerializer):
+    class Meta(UserDetailSerializer.Meta):
+        read_only_fields = ("id", "is_staff", "subscribed_to")
+
     def update(self, instance, validated_data):
-        """Update a user, set the password correctly and return it"""
         password = validated_data.pop("password", None)
         user = super().update(instance, validated_data)
+
         if password:
             user.set_password(password)
             user.save()
@@ -25,31 +62,19 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 
-class AuthTokenSerializer(serializers.Serializer):
-    email = serializers.CharField(label=_("Email"))
-    password = serializers.CharField(
-        label=_("Password"), style={"input_type": "password"}
-    )
+class UserListSerializer(serializers.ModelSerializer):
+    subscribers_number = serializers.SerializerMethodField()
 
-    def validate(self, attrs):
-        email = attrs.get("email")
-        password = attrs.get("password")
+    class Meta:
+        model = get_user_model()
+        fields = (
+            "id",
+            "email",
+            "username",
+            "subscribers_number",
+            "is_staff"
+        )
 
-        if email and password:
-            user = authenticate(email=email, password=password)
-
-            if user:
-                if not user.is_active:
-                    msg = _("User account is disabled.")
-                    raise serializers.ValidationError(
-                        msg, code="authorization"
-                    )
-            else:
-                msg = _("Unable to log in with provided credentials.")
-                raise serializers.ValidationError(msg, code="authorization")
-        else:
-            msg = _("Must include 'username' and 'password'.")
-            raise serializers.ValidationError(msg, code="authorization")
-
-        attrs["user"] = user
-        return attrs
+    @staticmethod
+    def get_subscribers_number(obj):
+        return obj.subscribers.count()

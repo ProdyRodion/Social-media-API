@@ -1,6 +1,9 @@
+from django.conf import settings
+from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext as _
-from django.contrib.auth.models import AbstractUser, BaseUserManager
+
+from django.contrib.auth.base_user import BaseUserManager
 
 
 class UserManager(BaseUserManager):
@@ -38,10 +41,16 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractUser):
-    """User model."""
-
-    username = None
     email = models.EmailField(_("email address"), unique=True)
+    username = models.CharField(max_length=63)
+    first_name = models.CharField(max_length=63, blank=True, null=True)
+    last_name = models.CharField(max_length=63, blank=True, null=True)
+    bio = models.CharField(max_length=255, blank=True, null=True)
+    avatar = models.ImageField(upload_to="avatars", blank=True, null=True)
+    subscribed_to = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="subscribers",
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
